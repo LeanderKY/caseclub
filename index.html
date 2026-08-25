@@ -697,14 +697,22 @@ footer .footer-contact{display:flex;flex-direction:column;gap:6px;font-size:.86r
 <script src="js/legal.js?v=20260825180138"></script>
 <script src="js/admin.js?v=20260825180138"></script>
 <script>
-const FREE_SHIP = 30, SHIP_COST = 4.90, PROMO_RATE = 0.15;
+const FREE_SHIP = 30, SHIP_COST = 4.90;
 const PROMO_CODE = "LAUNCH15";
+/* Rabatt-Codes: LAUNCH15 (15%, öffentlich in der Top-Leiste) und
+   TIKTOK25 (25%, NICHT auf der Seite — exklusiv fürs Promo-Video). */
+const PROMO_CODES = { LAUNCH15: 0.15, TIKTOK25: 0.25 };
 
 /* ======= PUBLISH CONFIG =======
    PUBLISH   : true = echter Zahlungs-Modus (PayPal), false = Demo-Modus
    PAYPAL_ME : dein PayPal.Me-Benutzername (z.B. "maxmustermann" → paypal.me/maxmustermann)
    EMAIL     : Bestellungen landen hier (mailto-Flow) */
 const CONFIG = { PUBLISH:true, PAYPAL_ME:"caseclub", EMAIL:"leander.kyvelos@gmail.com", CURRENCY:"USD",
+  /* Supabase-Backend (optional, siehe README-SUPABASE.md):
+     leer = E-Mail-Flow wie gehabt. Gesetzt = Bestellungen landen in der
+     Datenbank + automatische Bestätigungsmail an Kunde und dich. */
+  SUPABASE_URL: "",
+  SUPABASE_ANON: "",
   /* PAYPAL_CLIENT_ID = echte Zahlung mit Bestätigung. Gratis unter
      developer.paypal.com → Apps & Credentials → Live → Client ID kopieren.
      Nur damit weiss der Shop wirklich, ob bezahlt wurde. Leer = PayPal.Me-Link,
@@ -962,7 +970,7 @@ if(!localStorage.getItem('cc_consent')){
 
 /* CART */
 let cart = {};
-let promoApplied = false;
+let promoRate = 0, promoCode = "";
 function addToCartFromPd(){
   const model = $('pdModel').value;
   const key = pdProduct.id + '|' + model;
@@ -982,10 +990,11 @@ function cartTotals(){
   let subtotal=0, count=0;
   for(const key in cart){ subtotal += PRODUCTS.find(x=>x.id===cart[key].pid).price*cart[key].qty; count += cart[key].qty; }
   const bundle = count >= 2;
-  const discount = (promoApplied || bundle) ? subtotal * PROMO_RATE : 0;
+  const rate = promoRate || (bundle ? 0.15 : 0);
+  const discount = subtotal * rate;
   const after = subtotal - discount;
   const ship = after===0 ? 0 : (after>=FREE_SHIP ? 0 : SHIP_COST);
-  return {subtotal, discount, isPromo:promoApplied, isBundle:bundle && !promoApplied, ship, count, grand: after + ship};
+  return {subtotal, discount, rate, isPromo:promoRate>0, isBundle:bundle && !promoRate, ship, count, grand: after + ship};
 }
 function renderCart(){
   const {subtotal, discount, isPromo, isBundle, ship, count, grand} = cartTotals();
@@ -995,7 +1004,7 @@ function renderCart(){
   $('drawerCount').textContent = count?`· ${count}`:'';
   $('subtotal').textContent = '$'+subtotal.toFixed(2);
   $('discountRow').style.display = discount>0 ? 'flex' : 'none';
-  $('discountLabel').textContent = t(isPromo ? 'promo_row' : 'bundle_row');
+  $('discountLabel').textContent = isPromo ? `Code ${promoCode} · ${Math.round(promoRate*100)}%` : t('bundle_row');
   $('discountOff').textContent = '−$'+discount.toFixed(2);
   $('shipping').textContent = subtotal===0 ? '—' : (ship===0 ? t('free') : '$'+ship.toFixed(2));
   $('grandTotal').textContent = '$'+grand.toFixed(2);
@@ -1025,10 +1034,12 @@ function renderCart(){
 }
 function applyPromo(){
   const val = ($('promoInput').value || '').trim().toUpperCase();
-  if(val === PROMO_CODE){
-    promoApplied = true;
+  if(PROMO_CODES[val] !== undefined){
+    promoRate = PROMO_CODES[val];
+    promoCode = val;
     $('promoOk').style.display = 'block';
-    $('promoOk').textContent = t('promo_ok');
+    $('promoOk').style.color = '';
+    $('promoOk').textContent = `${t('promo_ok')} — ${Math.round(promoRate*100)}%`;
     renderCart();
   } else {
     $('promoOk').style.display = 'block';
@@ -1187,19 +1198,28 @@ function finishOrder(res){
   $('coSuccessSub').textContent   = t(res.paid ? 'co_success_sub' : 'co_reserved_sub');
   lastPaid = res.paid;
   buildOrderEmail(res);
+  const tt = cartTotals();
+  const orderPayload = {
+    id: oid,
+    items: Object.values(cart).map(it=>{
+      const pr = PRODUCTS.find(x=>x.id===it.pid);
+      return {pid: pr.id, name: pr.name, model: it.model, qty: it.qty, price: pr.price};
+    }),
+    subtotal: tt.subtotal, discount: tt.discount, ship: tt.ship, total: tt.grand,
+    email: ($('coEmail') && $('coEmail').value.trim()) || res.payer || '',
+    paid: res.paid, declared: !!res.declared, txn: res.txn || '', method: res.method,
+    lang: LANG
+  };
   if(typeof recordOrder === 'function'){
-    const tt = cartTotals();
-    recordOrder({
-      id: oid, ts: Date.now(),
-      items: Object.values(cart).map(it=>{
-        const pr = PRODUCTS.find(x=>x.id===it.pid);
-        return {pid: pr.id, name: pr.name, model: it.model, qty: it.qty, price: pr.price};
-      }),
-      subtotal: tt.subtotal, discount: tt.discount, ship: tt.ship, total: tt.grand,
-      email: ($('coEmail') && $('coEmail').value.trim()) || res.payer || '',
-      paid: res.paid, declared: !!res.declared, txn: res.txn || '', method: res.method,
-      tracking: '', status: res.paid ? 'paid' : 'pending'
-    });
+    recordOrder({ ...orderPayload, ts: Date.now(), tracking: '', status: res.paid ? 'paid' : 'pending' });
+  }
+  /* Supabase-Backend: Bestellung + automatische Bestätigungsmail (falls konfiguriert) */
+  if(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON){
+    fetch(`${CONFIG.SUPABASE_URL}/functions/v1/order-confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.SUPABASE_ANON, 'Authorization': 'Bearer ' + CONFIG.SUPABASE_ANON },
+      body: JSON.stringify(orderPayload)
+    }).catch(()=>{});
   }
 }
 let lastPaid = false;
@@ -1255,7 +1275,7 @@ function resetCheckout(){
   $('stepSuccess').style.display='none';
   $('stepProcessing').style.display='none';
   $('promoOk').style.display='none';
-  promoApplied = false;
+  promoRate = 0; promoCode = "";
   cart = {}; renderCart();
 }
 
