@@ -176,6 +176,14 @@ function renderAdmin(){
 
   const pp = document.getElementById('adPaypal');
   const cfg = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+  if(typeof SELLER_IS_PLACEHOLDER !== 'undefined' && SELLER_IS_PLACEHOLDER){
+    pp.insertAdjacentHTML('beforebegin', document.getElementById('adPlaceholderWarn') ? '' :
+      `<div id="adPlaceholderWarn" class="ad-pp" style="border-color:#c2543f;background:#fdf1ee">
+         <span class="warn">Rechtstexte enthalten noch Platzhalter-Daten</span>
+         <span>— „PLATZHALTER Muster-Handel, Musterstrasse 1, 8000 Musterstadt" steht in AGB und Datenschutz.
+         Vor dem ersten echten Verkauf in <b>js/legal.js</b> (SELLER) durch deinen Namen und deine Adresse ersetzen.</span>
+       </div>`);
+  }
   pp.innerHTML = cfg.PAYPAL_ME
     ? `<span>${cfg.PAYPAL_CLIENT_ID ? '<b style="color:var(--sage)">Zahlung wird automatisch bestätigt</b> (PayPal-Checkout aktiv)' : '<b class="warn">Zahlung wird NICHT automatisch bestätigt</b> — nur PayPal.Me-Link'} · Empfänger <b>paypal.me/${cfg.PAYPAL_ME}</b> · Bestellmails an <b>${cfg.EMAIL}</b> · Währung <b>${cfg.CURRENCY}</b></span>
        <button class="ad-btn" onclick="testPaypal()">Link mit $1.00 testen</button>

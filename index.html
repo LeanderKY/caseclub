@@ -693,9 +693,9 @@ footer .footer-contact{display:flex;flex-direction:column;gap:6px;font-size:.86r
 <div class="toast" id="toast"></div>
 <div id="lightbox" onclick="closeLightbox()"><img id="lightboxImg" src="" alt=""></div>
 
-<script src="js/i18n.js?v=20260825163528"></script>
-<script src="js/legal.js?v=20260825163528"></script>
-<script src="js/admin.js?v=20260825163528"></script>
+<script src="js/i18n.js?v=20260825180138"></script>
+<script src="js/legal.js?v=20260825180138"></script>
+<script src="js/admin.js?v=20260825180138"></script>
 <script>
 const FREE_SHIP = 30, SHIP_COST = 4.90, PROMO_RATE = 0.15;
 const PROMO_CODE = "LAUNCH15";
@@ -1210,11 +1210,19 @@ function buildOrderEmail(res){
     const p = PRODUCTS.find(x=>x.id===it.pid);
     return `${p.name} — ${it.model} — ${it.qty}x $${p.price.toFixed(2)}`;
   }).join('\n');
-  const body = `${items}\n\nSubtotal: $${subtotal.toFixed(2)}\nDiscount: -$${discount.toFixed(2)}\nShipping: ${ship ? '$'+ship.toFixed(2) : 'Free'}\nTotal: $${grand.toFixed(2)}\n\n${CONFIG.PAYPAL_ME ? 'PayPal payment sent to '+CONFIG.PAYPAL_ME : 'Payment link requested'}\n\nEmail: ${($('coEmail')&&$('coEmail').value)||''}\nName:\nDelivery address:`;
+  /* Ehrlich: der Shop erfährt von PayPal.Me NICHT, ob wirklich gezahlt wurde.
+     "declared" heisst nur: der Kunde HAT es behauptet. */
+  const payNote = CONFIG.PAYPAL_ME
+    ? (res && res.declared
+        ? `Zahlung: Kunde gibt an, via PayPal.Me (${CONFIG.PAYPAL_ME}) bezahlt zu haben — VOR VERSAND im PayPal-Konto gegenprüfen!`
+        : `Zahlung: PayPal.Me-Link (${CONFIG.PAYPAL_ME}) geöffnet — noch KEINE Zahlungsbestätigung. Erst versenden, wenn der Betrag im PayPal-Konto ist.`)
+    : 'Zahlung: Kunde erbittet Zahlungslink.';
+  const body = `${items}\n\nSubtotal: $${subtotal.toFixed(2)}\nDiscount: -$${discount.toFixed(2)}\nShipping: ${ship ? '$'+ship.toFixed(2) : 'Free'}\nTotal: $${grand.toFixed(2)}\n\n${payNote}\n\nEmail: ${($('coEmail')&&$('coEmail').value)||''}\nName:\nDelivery address:`;
   const sub = document.querySelector('[data-i="mail_sub"]');
   if(sub) sub.textContent = t(res && res.paid ? 'mail_sub_paid' : (CONFIG.PAYPAL_ME ? 'mail_sub' : 'mail_sub_req'));
   const btn = $('orderMailBtn');
-  btn.href = `mailto:${CONFIG.EMAIL}?subject=${encodeURIComponent('CaseClub order — $'+grand.toFixed(2))}&body=${encodeURIComponent(body)}`;
+  const subject = 'CaseClub order — $'+grand.toFixed(2)+(res && res.declared ? ' — Kunde sagt: bezahlt (prüfen!)' : '');
+  btn.href = `mailto:${CONFIG.EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   $('orderMailWrap').style.display = 'flex';
 }
 
@@ -1301,7 +1309,7 @@ function renderFooter(){
   if(mail){ mail.href = 'mailto:' + CONFIG.EMAIL; mail.textContent = CONFIG.EMAIL; }
   const legal = $('footerLegal');
   if(legal && typeof SELLER !== 'undefined'){
-    const named = !/\[/.test(SELLER.name);
+    const named = !(typeof SELLER_IS_PLACEHOLDER !== 'undefined' && SELLER_IS_PLACEHOLDER);
     legal.textContent = '© ' + new Date().getFullYear() + ' ' + (named ? SELLER.name : 'CASECLUB') +
       (named ? ' · ' + SELLER.city : '') + ' · ' + t('f_rights');
   }

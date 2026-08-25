@@ -6,11 +6,16 @@
 
    >>> NUR DIESE VIER ZEILEN AUSFÜLLEN — sie werden in allen Texten eingesetzt: <<< */
 const SELLER = {
-  name  : "[Dein Name oder Firmenname]",
-  street: "[Strasse Nr.]",
-  city  : "[PLZ Ort]",
+  name  : "PLATZHALTER Muster-Handel",
+  street: "PLATZHALTER Musterstrasse 1",
+  city  : "PLATZHALTER 8000 Musterstadt",
   email : "leander.kyvelos@gmail.com"
 };
+/* PLATZHALTER-Erkennung: solange oben "PLATZHALTER" oder eckige Klammern stehen,
+   warnt der Shop im Admin-Panel und in der Konsole. Beides verschwindet
+   automatisch, sobald echte Daten drinstehen. */
+const SELLER_IS_PLACEHOLDER = /PLATZHALTER|\[/.test(SELLER.name + SELLER.street + SELLER.city);
+if(SELLER_IS_PLACEHOLDER) console.warn('[CaseClub] Rechtstexte enthalten Platzhalter-Anbieterdaten — vor dem Livegang in js/legal.js ersetzen.');
 const SELLER_LINE = `${SELLER.name}, ${SELLER.street}, ${SELLER.city}, Schweiz`;
 const LEGAL = {
 agb: {
