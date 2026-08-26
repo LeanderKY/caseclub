@@ -28,7 +28,12 @@ jobs:
           test -s js/experience.js
           grep -q 'polyfork.dev/cdn/smartphone-5f05e5.glb' js/experience.js
           grep -q 'model-viewer' js/experience.js
-          grep -q 'experience.css' js/legal.js
+          grep -q 'experience.css?v=20260826' index.html
+          grep -q 'experience.js?v=20260826' index.html
+          if grep -q 'Progressive visual-experience boot' js/legal.js; then
+            echo 'Visual experience boot must stay out of legal.js'
+            exit 1
+          fi
       - name: Guard existing shop surface
         run: |
           grep -q 'id="productGrid"' index.html
