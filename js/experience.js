@@ -66,6 +66,28 @@ function currentCopy(){
   return STORY[lang] || STORY.en;
 }
 
+function applyCompatibilityFixes(){
+  if(document.getElementById('ccCompatibilityFixes')) return;
+  const style = document.createElement('style');
+  style.id = 'ccCompatibilityFixes';
+  style.textContent = `
+    @media (max-width:980px){
+      .cc-experience .hero{text-align:left!important}
+      .cc-experience .hero-actions{justify-content:flex-start!important}
+      .cc-experience .hero .caps{margin-inline:0!important}
+      .cc-experience .club-wrap{grid-template-columns:1fr!important}
+      .cc-experience .club-wrap::before,.cc-experience .club-wrap::after{display:none!important}
+      .cc-experience .club-right{border-left:0!important;border-top:1px dashed var(--ink)!important}
+    }
+    @media (max-width:760px){
+      .cc-experience .hero{text-align:left!important}
+      .cc-experience .hero-visual .p:nth-child(2){opacity:.88}
+      .cc-experience .hero-visual .p:nth-child(3){opacity:.9}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function loadModelViewer(){
   if(customElements.get('model-viewer') || document.querySelector('script[data-cc-model-viewer]')) return;
   const script = document.createElement('script');
@@ -137,6 +159,14 @@ function initStoryScroll(section){
   let raf = 0;
   let lastChapter = -1;
 
+  model.addEventListener('load',()=>{
+    fallback.style.opacity = '0';
+    fallback.style.transition = 'opacity .45s ease';
+  },{once:true});
+  model.addEventListener('error',()=>{
+    fallback.style.opacity = '.5';
+  });
+
   const update = () => {
     raf = 0;
     const rect = section.getBoundingClientRect();
@@ -150,7 +180,6 @@ function initStoryScroll(section){
     bar.style.width = `${(p*100).toFixed(2)}%`;
 
     if(!reducedMotion){
-      // Slow, weighted movement: one deliberate turn through the whole story.
       const azimuth = 24 + p * 302;
       const polar = 72 - Math.sin(p * Math.PI) * 15;
       const radius = 111 - Math.sin(p * Math.PI) * 13;
@@ -222,7 +251,6 @@ function initHeroParallax(){
 }
 
 function auditAndFixSmallScreens(){
-  // Dynamic viewport + overflow guards for iOS homescreen / Safari.
   document.documentElement.style.setProperty('--cc-vh', `${innerHeight * .01}px`);
   document.querySelectorAll('img').forEach(img=>{
     if(!img.hasAttribute('decoding')) img.setAttribute('decoding','async');
@@ -231,6 +259,7 @@ function auditAndFixSmallScreens(){
 
 function initExperience(){
   document.body.classList.add('cc-experience');
+  applyCompatibilityFixes();
   buildStory();
   decorateProducts();
   watchDynamicContent();
