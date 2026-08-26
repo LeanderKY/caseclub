@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   browser-qa:
@@ -14,11 +14,15 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: cinematic-redesign
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install browser
         run: |
+          mkdir -p /tmp/caseclub-browser-qa
+          cd /tmp/caseclub-browser-qa
           npm init -y >/dev/null 2>&1
           npm install --save-dev playwright@1.55.0
           npx playwright install --with-deps chromium
@@ -34,13 +38,16 @@ jobs:
           exit 1
       - name: Render and audit
         run: |
-          cat > /tmp/visual-qa.mjs <<'JS'
+          cat > /tmp/caseclub-browser-qa/visual-qa.mjs <<'JS'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
-          fs.mkdirSync('visual-qa', { recursive:true });
+          import path from 'node:path';
 
+          const out = path.join(process.env.GITHUB_WORKSPACE, 'visual-qa');
+          fs.rmSync(out, {recursive:true, force:true});
+          fs.mkdirSync(out, {recursive:true});
+          const report = { generatedAt:new Date().toISOString(), views:{}, fatal:[] };
           const browser = await chromium.launch({headless:true});
-          const report = { generatedAt:new Date().toISOString(), views:{} };
 
           async function render(name, width, height){
             const context = await browser.newContext({ viewport:{width,height}, deviceScaleFactor:1 });
@@ -49,72 +56,115 @@ jobs:
             const pageErrors=[];
             page.on('console', m=>{ if(m.type()==='error') consoleErrors.push(m.text()); });
             page.on('pageerror', e=>pageErrors.push(String(e)));
-            await page.addInitScript(()=>{
-              localStorage.setItem('cc_lang','en');
-              localStorage.setItem('cc_cookie','min');
-            });
-            await page.goto('http://127.0.0.1:4173/', {waitUntil:'domcontentloaded', timeout:30000});
-            await page.waitForSelector('.cc-experience', {timeout:10000});
-            await page.waitForSelector('.cc-story', {timeout:10000});
-            await page.waitForTimeout(1500);
 
-            await page.screenshot({path:`visual-qa/${name}-hero.png`, fullPage:false});
+            try {
+              await page.goto('http://127.0.0.1:4173/', {waitUntil:'domcontentloaded', timeout:30000});
+              await page.evaluate(()=>{
+                localStorage.setItem('cc_lang','en');
+                localStorage.setItem('cc_cookie','min');
+              });
+              await page.reload({waitUntil:'domcontentloaded', timeout:30000});
+              await page.waitForSelector('.cc-experience', {timeout:10000});
+              await page.waitForSelector('.cc-story', {timeout:10000});
+              await page.waitForSelector('#productGrid .card', {timeout:10000});
+              await page.waitForFunction(()=>document.querySelectorAll('#productGrid .card').length===8, {timeout:10000});
+              await page.waitForFunction(()=>document.querySelector('#ccPhoneModel')?.loaded === true, {timeout:8000}).catch(()=>{});
+              await page.waitForTimeout(500);
 
-            const story = page.locator('.cc-story');
-            const storyBox = await story.boundingBox();
-            const storyMetrics = await page.evaluate(()=>{
-              const s=document.querySelector('.cc-story');
-              return s ? {top:s.offsetTop,height:s.offsetHeight} : null;
-            });
-            if(storyMetrics){
-              await page.evaluate(({top,height,vh})=>scrollTo(0, top+(height-vh)*.52), {top:storyMetrics.top,height:storyMetrics.height,vh:height});
-              await page.waitForTimeout(700);
-              await page.screenshot({path:`visual-qa/${name}-story.png`, fullPage:false});
+              await page.evaluate(()=>scrollTo(0,0));
+              await page.waitForTimeout(150);
+              await page.screenshot({path:path.join(out,`${name}-hero.png`), fullPage:false});
+
+              const storyMetrics = await page.evaluate(()=>{
+                const s=document.querySelector('.cc-story');
+                return s ? {top:s.offsetTop,height:s.offsetHeight} : null;
+              });
+              if(storyMetrics){
+                await page.evaluate(({top,h,vh})=>scrollTo(0, top+(h-vh)*.52), {top:storyMetrics.top,h:storyMetrics.height,vh:height});
+                await page.waitForTimeout(500);
+                await page.screenshot({path:path.join(out,`${name}-story.png`), fullPage:false});
+              }
+
+              await page.locator('#shop').scrollIntoViewIfNeeded();
+              await page.waitForTimeout(350);
+              await page.screenshot({path:path.join(out,`${name}-shop.png`), fullPage:false});
+
+              const audit = await page.evaluate(()=>{
+                const q=s=>document.querySelector(s);
+                const rect=s=>{ const r=q(s)?.getBoundingClientRect(); return r?{x:r.x,y:r.y,width:r.width,height:r.height}:null };
+                const model=q('#ccPhoneModel');
+                const images=[...document.images];
+                return {
+                  viewport:{width:innerWidth,height:innerHeight},
+                  horizontalOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+                  documentWidth:document.documentElement.scrollWidth,
+                  hero:rect('.hero'),
+                  story:rect('.cc-story-sticky'),
+                  shop:rect('#shop'),
+                  modelDefined:!!customElements.get('model-viewer'),
+                  modelLoaded:!!model?.loaded,
+                  brokenImages:images.filter(i=>i.complete && i.getAttribute('src') && i.naturalWidth===0).map(i=>i.getAttribute('src')),
+                  activeChapter:q('.cc-chapter.is-active')?.dataset.chapter ?? null,
+                  visibleCards:document.querySelectorAll('#productGrid .card').length,
+                  bodyClass:document.body.className,
+                  navLinksVisible:getComputedStyle(q('.nav-links')).display!=='none'
+                };
+              });
+              report.views[name]={...audit,consoleErrors,pageErrors};
+            } catch(e) {
+              report.views[name]={fatalError:String(e),consoleErrors,pageErrors};
+              await page.screenshot({path:path.join(out,`${name}-failure.png`), fullPage:false}).catch(()=>{});
+            } finally {
+              await context.close();
             }
-
-            await page.locator('#shop').scrollIntoViewIfNeeded();
-            await page.waitForTimeout(450);
-            await page.screenshot({path:`visual-qa/${name}-shop.png`, fullPage:false});
-
-            const audit = await page.evaluate(()=>{
-              const q=s=>document.querySelector(s);
-              const rect=s=>{ const r=q(s)?.getBoundingClientRect(); return r?{x:r.x,y:r.y,width:r.width,height:r.height}:null };
-              const model=q('#ccPhoneModel');
-              const images=[...document.images];
-              return {
-                viewport:{width:innerWidth,height:innerHeight},
-                horizontalOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
-                documentWidth:document.documentElement.scrollWidth,
-                hero:rect('.hero'), story:rect('.cc-story-sticky'), shop:rect('#shop'),
-                modelDefined:!!customElements.get('model-viewer'),
-                modelLoaded:!!model?.loaded,
-                brokenImages:images.filter(i=>i.complete && i.naturalWidth===0).map(i=>i.src),
-                activeChapter:q('.cc-chapter.is-active')?.dataset.chapter ?? null,
-                visibleCards:[...document.querySelectorAll('#productGrid .card')].length,
-                bodyClass:document.body.className
-              };
-            });
-            report.views[name]={...audit,consoleErrors,pageErrors,storyBox};
-            await context.close();
           }
 
           await render('desktop',1440,1000);
           await render('mobile',390,844);
           await browser.close();
-          fs.writeFileSync('visual-qa/report.json', JSON.stringify(report,null,2));
 
-          const fatal=[];
           for(const [name,v] of Object.entries(report.views)){
-            if(v.horizontalOverflow>2) fatal.push(`${name}: horizontal overflow ${v.horizontalOverflow}px`);
-            if(v.visibleCards!==8) fatal.push(`${name}: expected 8 cards, got ${v.visibleCards}`);
-            if(v.pageErrors.length) fatal.push(`${name}: page errors: ${v.pageErrors.join(' | ')}`);
+            if(v.fatalError) report.fatal.push(`${name}: ${v.fatalError}`);
+            if((v.horizontalOverflow ?? 0)>2) report.fatal.push(`${name}: horizontal overflow ${v.horizontalOverflow}px`);
+            if(v.visibleCards!==undefined && v.visibleCards!==8) report.fatal.push(`${name}: expected 8 cards, got ${v.visibleCards}`);
+            if(v.pageErrors?.length) report.fatal.push(`${name}: page errors: ${v.pageErrors.join(' | ')}`);
+            if(v.modelDefined===false) report.fatal.push(`${name}: model-viewer did not register`);
+            if(v.modelLoaded===false) report.fatal.push(`${name}: 3D phone model did not load`);
           }
-          if(fatal.length){ console.error(fatal.join('\n')); process.exit(1); }
+          fs.writeFileSync(path.join(out,'report.json'), JSON.stringify(report,null,2));
+          console.log(JSON.stringify(report,null,2));
           JS
-          node /tmp/visual-qa.mjs
-      - uses: actions/upload-artifact@v4
+          cd /tmp/caseclub-browser-qa
+          node visual-qa.mjs
+      - name: Save QA output on isolated branch
         if: always()
-        with:
-          name: cinematic-visual-qa
-          path: visual-qa
-          if-no-files-found: error
+        run: |
+          cp -R visual-qa /tmp/caseclub-visual-qa-output
+          git fetch origin cinematic-visual-qa:cinematic-visual-qa
+          git switch cinematic-visual-qa
+          rm -rf visual-qa
+          cp -R /tmp/caseclub-visual-qa-output visual-qa
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add visual-qa
+          if git diff --cached --quiet; then
+            echo 'No QA output changes'
+          else
+            git commit -m "Update cinematic browser QA screenshots [skip ci]"
+            git push origin HEAD:cinematic-visual-qa
+          fi
+      - name: Enforce layout audit
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+          p=pathlib.Path('/tmp/caseclub-visual-qa-output/report.json')
+          if not p.exists():
+              raise SystemExit('No visual QA report was produced')
+          r=json.loads(p.read_text())
+          print(json.dumps(r, indent=2))
+          if r.get('fatal'):
+              print('\nVisual QA failures:')
+              print('\n'.join('- '+x for x in r['fatal']))
+              sys.exit(1)
+          PY
