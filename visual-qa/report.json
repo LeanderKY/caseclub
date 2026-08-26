@@ -1,0 +1,76 @@
+{
+  "generatedAt": "2026-08-26T20:40:03.550Z",
+  "views": {
+    "desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "horizontalOverflow": 0,
+      "documentWidth": 1440,
+      "hero": {
+        "x": 0,
+        "y": -6469.78125,
+        "width": 1440,
+        "height": 892
+      },
+      "story": {
+        "x": 0,
+        "y": -2935.421875,
+        "width": 1440,
+        "height": 1000
+      },
+      "shop": {
+        "x": 0,
+        "y": -1248.671875,
+        "width": 1440,
+        "height": 3497.46875
+      },
+      "modelDefined": true,
+      "modelLoaded": true,
+      "brokenImages": [],
+      "activeChapter": "2",
+      "visibleCards": 8,
+      "bodyClass": "cc-experience",
+      "navLinksVisible": true,
+      "consoleErrors": [],
+      "pageErrors": []
+    },
+    "mobile": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "horizontalOverflow": 0,
+      "documentWidth": 390,
+      "hero": {
+        "x": 0,
+        "y": -5918.4375,
+        "width": 390,
+        "height": 750
+      },
+      "story": {
+        "x": 0,
+        "y": -3191,
+        "width": 390,
+        "height": 844
+      },
+      "shop": {
+        "x": 0,
+        "y": -1645.578125,
+        "width": 390,
+        "height": 4135.21875
+      },
+      "modelDefined": true,
+      "modelLoaded": true,
+      "brokenImages": [],
+      "activeChapter": "2",
+      "visibleCards": 8,
+      "bodyClass": "cc-experience",
+      "navLinksVisible": false,
+      "consoleErrors": [],
+      "pageErrors": []
+    }
+  },
+  "fatal": []
+}
