@@ -98,28 +98,3 @@ shipping: {
   <p><b>International delivery</b><br>We currently ship to Switzerland and Liechtenstein only.</p>`}
 }
 };
-
-/* Progressive visual-experience boot.
-   Kept isolated from shop/payment logic so the existing static app still works
-   if the enhancement files or the remote 3D viewer fail to load. */
-(() => {
-  if (!document.querySelector('link[data-cc-experience]')) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'css/experience.css?v=20260826';
-    link.dataset.ccExperience = '1';
-    document.head.appendChild(link);
-  }
-
-  const boot = () => {
-    if (document.querySelector('script[data-cc-experience]')) return;
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = 'js/experience.js?v=20260826';
-    script.dataset.ccExperience = '1';
-    document.head.appendChild(script);
-  };
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
-  else boot();
-})();

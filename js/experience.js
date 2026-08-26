@@ -143,7 +143,7 @@ function updateStoryText(){
   const copy = currentCopy();
   const copyWrap = section.querySelector('.cc-story-copy');
   copyWrap.innerHTML = copy.chapters.map((c,i)=>`
-    <article class="cc-chapter${i===0?' is-active':''}" data-chapter="${i}">
+    <article class="cc-chapter${i===0?' is-active':''}" data-chapter="${i}" aria-hidden="${i===0?'false':'true'}">
       <span class="cc-chapter-no">${c[0]}</span>
       <h2>${c[1]}</h2>
       <p>${c[2]}</p>
@@ -160,8 +160,8 @@ function initStoryScroll(section){
   let lastChapter = -1;
 
   model.addEventListener('load',()=>{
-    fallback.style.opacity = '0';
     fallback.style.transition = 'opacity .45s ease';
+    fallback.style.opacity = '0';
   },{once:true});
   model.addEventListener('error',()=>{
     fallback.style.opacity = '.5';
@@ -175,7 +175,11 @@ function initStoryScroll(section){
     const chapter = Math.min(2, Math.floor(p * 3.001));
     if(chapter !== lastChapter){
       lastChapter = chapter;
-      section.querySelectorAll('.cc-chapter').forEach((el,i)=>el.classList.toggle('is-active',i===chapter));
+      section.querySelectorAll('.cc-chapter').forEach((el,i)=>{
+        const active = i === chapter;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+      });
     }
     bar.style.width = `${(p*100).toFixed(2)}%`;
 
@@ -236,7 +240,6 @@ function initHeroParallax(){
   const hero = document.querySelector('.hero');
   if(!hero || reducedMotion || matchMedia('(pointer:coarse)').matches) return;
   const pieces = [...hero.querySelectorAll('.hero-visual .p')];
-  const bases = [5,-8,10,-4];
   hero.addEventListener('pointermove', e=>{
     const r = hero.getBoundingClientRect();
     const x = (e.clientX-r.left)/r.width-.5;
@@ -244,10 +247,9 @@ function initHeroParallax(){
     pieces.forEach((p,i)=>{
       const depth = (i+1)*4;
       p.style.translate = `${(x*depth).toFixed(1)}px ${(y*depth).toFixed(1)}px`;
-      p.style.rotate = `${(bases[i] + x*(i%2?2:-2)).toFixed(2)}deg`;
     });
   });
-  hero.addEventListener('pointerleave',()=>pieces.forEach(p=>{p.style.translate='';p.style.rotate='';}));
+  hero.addEventListener('pointerleave',()=>pieces.forEach(p=>{p.style.translate='';}));
 }
 
 function auditAndFixSmallScreens(){
