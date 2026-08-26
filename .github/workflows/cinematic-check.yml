@@ -1,0 +1,45 @@
+name: Cinematic redesign checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check js/experience.js
+          node --check js/i18n.js
+          node --check js/legal.js
+          node --check js/admin.js
+      - name: Experience files and dependencies
+        run: |
+          test -s css/experience.css
+          test -s js/experience.js
+          grep -q 'polyfork.dev/cdn/smartphone-5f05e5.glb' js/experience.js
+          grep -q 'model-viewer' js/experience.js
+          grep -q 'experience.css?v=20260826' index.html
+          grep -q 'experience.js?v=20260826' index.html
+          if grep -q 'Progressive visual-experience boot' js/legal.js; then
+            echo 'Visual experience boot must stay out of legal.js'
+            exit 1
+          fi
+      - name: Guard existing shop surface
+        run: |
+          grep -q 'id="productGrid"' index.html
+          grep -q 'id="drawer"' index.html
+          grep -q 'id="modal"' index.html
+          grep -q 'id="legalModal"' index.html
+          grep -q 'js/admin.js' index.html
+          grep -q 'js/i18n.js' index.html
+          grep -q 'js/legal.js' index.html
