@@ -32,8 +32,9 @@ jobs:
       - name: Guard existing shop surface
         run: |
           grep -q 'id="productGrid"' index.html
-          grep -q 'id="cartDrawer"' index.html
-          grep -q 'id="checkoutModal"' index.html
+          grep -q 'id="drawer"' index.html
+          grep -q 'id="modal"' index.html
+          grep -q 'id="legalModal"' index.html
           grep -q 'js/admin.js' index.html
           grep -q 'js/i18n.js' index.html
           grep -q 'js/legal.js' index.html
